@@ -6,7 +6,6 @@ use std::collections::HashMap;
 use std::env;
 use std::fmt;
 use std::fs::File;
-use std::io;
 use std::io::Read;
 use std::process;
 use clap::{Arg, App};
@@ -14,23 +13,40 @@ use clap::{Arg, App};
 #[derive(RustcDecodable, Debug)]
 struct Command {
     cmd: String,
+    spawn: Option<bool>,
     args: Option<Vec<String>>,
     desc: Option<String>,
 }
 
 impl Command {
     fn execute(&self) {
-        let mut cmd = process::Command::new(&self.cmd);
+        let is_spawn = self.spawn.unwrap_or(false);
+        let mut args = Vec::<String>::new();
+
+        let mut cmd = if is_spawn {
+            let cmd = process::Command::new("cmd");
+            args.push("/c".to_string());
+            args.push(self.cmd.to_owned());
+            cmd
+        } else {
+            let cmd = process::Command::new(&self.cmd);
+            cmd
+        };
+
         if self.args.is_some() {
-            cmd.args(self.args.as_ref().unwrap());
+            args.extend_from_slice(&self.args.as_ref().unwrap().as_slice());
         }
 
+        cmd.args(args);
+
         let ch = cmd.spawn();
-        match ch {
-            Ok(mut c) => {
+        if let Ok(mut c) = ch {
+            if !is_spawn {
                 c.wait();
             }
-            Err(e) => println!("err {}", e),
+        } else {
+            let e = ch.err().unwrap();
+            println!("err {}", e);
         };
     }
 }
@@ -73,7 +89,7 @@ impl fmt::Display for CommandStore {
 
 fn main() {
     let matches = App::new("buri")
-                      .version("0.1")
+                      .version("0.2")
                       .author("meganehouser <sleepy.st818@gmail.com>")
                       .about("Command launcher")
                       .arg(Arg::with_name("INPUT")
