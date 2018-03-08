@@ -1,6 +1,7 @@
 extern crate clap;
 extern crate toml;
 extern crate rustc_serialize;
+extern crate winapi;
 
 use std::collections::HashMap;
 use std::env;
@@ -18,36 +19,74 @@ struct Command {
     desc: Option<String>,
 }
 
+fn execute_shell_nowait(cmd: &str, params: &str) {
+    use std::ffi::OsStr;
+    use std::ptr::null_mut;
+    use std::iter::once;
+    use std::os::windows::ffi::OsStrExt;
+    use std::mem::size_of;
+    use winapi::um::shellapi::{SHELLEXECUTEINFOW, ShellExecuteExW};
+    use winapi::um::winnt::LPCWSTR;
+
+    let lp_verb: LPCWSTR = OsStr::new("open").encode_wide().chain(once(0)).collect::<Vec<u16>>().as_ptr();
+    let lp_file: LPCWSTR = OsStr::new(cmd).encode_wide().chain(once(0)).collect::<Vec<u16>>().as_ptr();
+    let lp_params: LPCWSTR = OsStr::new(params).encode_wide().chain(once(0)).collect::<Vec<u16>>().as_ptr();
+
+    let info = &mut SHELLEXECUTEINFOW{
+        cbSize: size_of::<SHELLEXECUTEINFOW>() as u32,
+        fMask: 0x00000000,
+        hwnd: null_mut(),
+        lpVerb: lp_verb,
+        lpFile: lp_file,
+        lpParameters: lp_params,
+        lpDirectory: null_mut(),
+        nShow: 1,
+        hInstApp: null_mut(),
+        lpIDList: null_mut(),
+        lpClass: null_mut(),
+        hkeyClass: null_mut(),
+        dwHotKey: 0,
+        hMonitor: null_mut(),
+        hProcess: null_mut()
+    } as *mut SHELLEXECUTEINFOW;
+
+    unsafe {
+      ShellExecuteExW(info);
+    };
+}
+
 impl Command {
     fn execute(&self) {
         let is_spawn = self.spawn.unwrap_or(false);
         let mut args = Vec::<String>::new();
 
-        let mut cmd = if is_spawn {
-            let cmd = process::Command::new("cmd");
-            args.push("/c".to_string());
-            args.push(self.cmd.to_owned());
-            cmd
+        if is_spawn {
+            let params = if let Some(ref v) = self.args {
+                v.as_slice().join(" ")
+            } else {
+                "".to_string()
+            };
+
+            execute_shell_nowait(&self.cmd, &params);
         } else {
-            let cmd = process::Command::new(&self.cmd);
-            cmd
-        };
+            let mut cmd = process::Command::new(&self.cmd);
 
-        if self.args.is_some() {
-            args.extend_from_slice(&self.args.as_ref().unwrap().as_slice());
-        }
-
-        cmd.args(args);
-
-        let ch = cmd.spawn();
-        if let Ok(mut c) = ch {
-            if !is_spawn {
-                c.wait();
+            if self.args.is_some() {
+                args.extend_from_slice(&self.args.as_ref().unwrap().as_slice());
             }
-        } else {
-            let e = ch.err().unwrap();
-            println!("err {}", e);
-        };
+
+            cmd.args(args);
+
+            let ch = cmd.spawn();
+            if let Ok(mut c) = ch {
+                if !is_spawn {
+                    c.wait();
+                }
+            } else {
+                let e = ch.err().unwrap();
+                println!("err {}", e);
+            };
+        };        
     }
 }
 
@@ -89,7 +128,7 @@ impl fmt::Display for CommandStore {
 
 fn main() {
     let matches = App::new("buri")
-                      .version("0.2")
+                      .version("0.3")
                       .author("meganehouser <sleepy.st818@gmail.com>")
                       .about("Command launcher")
                       .arg(Arg::with_name("INPUT")

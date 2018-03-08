@@ -1,11 +1,12 @@
 [package]
 name = "buri"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["meganehouser <sleepy.st818@gmail.com>"]
 
 [dependencies]
 toml = "0.2"
 rustc-serialize = "0.3"
+winapi = {version="0.3.4", features = ["winnt", "shellapi"]}
 
 [dependencies.clap]
 version = "2.19"
