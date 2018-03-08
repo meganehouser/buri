@@ -26,19 +26,17 @@ fn execute_shell_nowait(cmd: &str, params: &str) {
     use std::os::windows::ffi::OsStrExt;
     use std::mem::size_of;
     use winapi::um::shellapi::{SHELLEXECUTEINFOW, ShellExecuteExW};
-    use winapi::um::winnt::LPCWSTR;
 
-    let lp_verb: LPCWSTR = OsStr::new("open").encode_wide().chain(once(0)).collect::<Vec<u16>>().as_ptr();
-    let lp_file: LPCWSTR = OsStr::new(cmd).encode_wide().chain(once(0)).collect::<Vec<u16>>().as_ptr();
-    let lp_params: LPCWSTR = OsStr::new(params).encode_wide().chain(once(0)).collect::<Vec<u16>>().as_ptr();
+    let lp_file = OsStr::new(cmd).encode_wide().chain(once(0)).collect::<Vec<u16>>();
+    let lp_params = OsStr::new(params).encode_wide().chain(once(0)).collect::<Vec<u16>>();
 
     let info = &mut SHELLEXECUTEINFOW{
         cbSize: size_of::<SHELLEXECUTEINFOW>() as u32,
         fMask: 0x00000000,
         hwnd: null_mut(),
-        lpVerb: lp_verb,
-        lpFile: lp_file,
-        lpParameters: lp_params,
+        lpVerb: null_mut(),
+        lpFile: lp_file.as_ptr(),
+        lpParameters: lp_params.as_ptr(),
         lpDirectory: null_mut(),
         nShow: 1,
         hInstApp: null_mut(),
